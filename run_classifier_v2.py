@@ -296,7 +296,7 @@ def main(_):
 
     tf.gfile.MakeDirs(FLAGS.output_dir)
 
-    mirrored_strategy = tf.distribute.MirroredStrategy()
+    mirrored_strategy = tf.contrib.distribute.MirroredStrategy()
 
     run_config = tf.estimator.RunConfig(
         model_dir=FLAGS.output_dir,
