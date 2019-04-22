@@ -30,18 +30,18 @@ flags.DEFINE_string(
 
 
 flags.DEFINE_integer(
-    "max_seq_length", 128,
+    "max_seq_length", 224,
     "The maximum total input sequence length after WordPiece tokenization. "
     "Sequences longer than this will be truncated, and sequences shorter "
     "than this will be padded.")
 
 
 def example_generator(dir_name, tag="train"):
-    src_encoder = SpmTextEncoder(os.path.join(FLAGS.data_dir, FLAGS.vocab, FLAGS.src))
-    tgt_encoder = SpmTextEncoder(os.path.join(FLAGS.data_dir, FLAGS.vocab, FLAGS.tgt))
-    with open(os.path.join(dir_name, "src-{0}".format(tag)), "r") as src, \
-        open(os.path.join(dir_name, "tgt-{0}".format(tag)), "r") as tgt, \
-        open(os.path.join(dir_name, "label-{0}".format(tag)), "r") as labels:
+    src_encoder = SpmTextEncoder(os.path.join(FLAGS.data_dir, FLAGS.vocab + "." + FLAGS.src + ".model"))
+    tgt_encoder = SpmTextEncoder(os.path.join(FLAGS.data_dir, FLAGS.vocab + "." + FLAGS.tgt + ".model"))
+    with open(os.path.join(dir_name, "sentence-pair-src-{0}".format(tag)), "r") as src, \
+        open(os.path.join(dir_name, "sentence-pair-tgt-{0}".format(tag)), "r") as tgt, \
+        open(os.path.join(dir_name, "sentence-pair-label-{0}".format(tag)), "r") as labels:
         for src_line, tgt_line, label in zip(src.readlines(), tgt.readlines(), labels.readlines()):
             feature = dict()
             feature["src_ids"] = src_encoder.encode(src_line.strip())[0: FLAGS.max_seq_length]

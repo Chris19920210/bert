@@ -13,7 +13,7 @@ EOS = "</s>"
 UNK = "<unk>"
 PAD = "<pad>"
 BOS = "<s>"
-RESERVED_TOKENS = [PAD, EOS, UNK, BOS]
+RESERVED_TOKENS = [PAD, BOS, UNK, EOS]
 NUM_RESERVED_TOKENS = len(RESERVED_TOKENS)
 UNK_ID = RESERVED_TOKENS.index(UNK)
 PAD_ID = RESERVED_TOKENS.index(PAD)
@@ -117,9 +117,9 @@ class SpmTextEncoder(TextEncoder):
         """
         if reserved_tokens is None:
             args = "--pad_id=0 " \
-                   "--eos_id=1 " \
+                   "--bos_id=1 " \
                    "--unk_id=2 " \
-                   "--bos_id=3 " \
+                   "--eos_id=3 " \
                    "--input={filename:s} " \
                    "--model_prefix={model_prefix:s} " \
                    "--model_type={model_type:s} " \
@@ -133,9 +133,9 @@ class SpmTextEncoder(TextEncoder):
                         model_prefix=model_prefix)
         else:
             args = "--pad_id=0 " \
-                   "--eos_id=1 " \
+                   "--bos_id=1 " \
                    "--unk_id=2 " \
-                   "--bos_id=3 " \
+                   "--eos_id=3 " \
                    "--user_defined_symbols={reserved_tokens:s} " \
                    "--input={filename:s} " \
                    "--model_prefix={model_prefix:s} " \
