@@ -23,6 +23,8 @@ import modeling
 import optimization
 from SpmTextEncoder import BOS_ID, EOS_ID, PAD_ID
 import tensorflow as tf
+from tensorflow.python.client import device_lib
+
 
 flags = tf.flags
 
@@ -83,6 +85,11 @@ flags.DEFINE_integer("save_checkpoints_steps", 1000,
 
 flags.DEFINE_integer("iterations_per_loop", 1000,
                      "How many steps to make in each estimator call.")
+
+
+def get_available_gpus():
+    local_device_protos = device_lib.list_local_devices()
+    return [x.name for x in local_device_protos if x.device_type == 'GPU']
 
 
 def file_based_input_fn_builder(input_files, is_training, batch_size):
@@ -296,7 +303,9 @@ def main(_):
 
     tf.gfile.MakeDirs(FLAGS.output_dir)
 
-    mirrored_strategy = tf.contrib.distribute.MirroredStrategy()
+    mirrored_strategy = tf.contrib.distribute.MirroredStrategy(
+        devices=get_available_gpus(),
+    )
 
     run_config = tf.estimator.RunConfig(
         model_dir=FLAGS.output_dir,
