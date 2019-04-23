@@ -76,7 +76,7 @@ flags.DEFINE_float("num_train_steps", 1000000,
                    "Total number of training epochs to perform.")
 
 flags.DEFINE_integer(
-    "warmup_steps", 1500,
+    "num_warmup_steps", 1500,
     "Proportion of training to perform linear learning rate warmup for. "
     "E.g., 0.1 = 10% of training.")
 
@@ -110,7 +110,7 @@ def file_based_input_fn_builder(input_files, is_training, batch_size):
                 t = tf.to_int32(t)
             example[name] = t
 
-        return example["src_ids"], example["tgt_ids"], example["label"]
+        return example["src_ids"].values, example["tgt_ids"].values, example["label"][0]
 
     def input_fn():
         """The actual input function."""
@@ -156,15 +156,14 @@ def file_based_input_fn_builder(input_files, is_training, batch_size):
                     0))  # src_len -- unused
 
         batched_dataset = batching_func(d)
-        batched_iter = batched_dataset.make_initializable_iterator()
-        (input_ids, segment_ids, label) = batched_iter.get_next()
+        batched_dataset = batched_dataset.map(
+            lambda input_ids, segment_ids, label_ids:
+            {'input_ids': input_ids,
+             'segment_ids': segment_ids,
+             'label_ids': label_ids}
+        )
 
-        features = dict()
-        features["input_ids"] = input_ids
-        features["segment_ids"] = segment_ids
-        features["label_ids"] = label
-
-        return features
+        return batched_dataset
 
     return input_fn
 
