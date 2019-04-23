@@ -72,7 +72,7 @@ flags.DEFINE_integer("predict_batch_size", 8, "Total batch size for predict.")
 
 flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
 
-flags.DEFINE_float("num_train_steps", 100000,
+flags.DEFINE_float("num_train_steps", 1000000,
                    "Total number of training epochs to perform.")
 
 flags.DEFINE_integer(
@@ -82,9 +82,6 @@ flags.DEFINE_integer(
 
 flags.DEFINE_integer("save_checkpoints_steps", 1000,
                      "How often to save the model checkpoint.")
-
-flags.DEFINE_integer("iterations_per_loop", 1000,
-                     "How many steps to make in each estimator call.")
 
 
 def get_available_gpus():
