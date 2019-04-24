@@ -56,8 +56,6 @@ flags.DEFINE_string(
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
-flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
-
 flags.DEFINE_bool(
     "do_predict", False,
     "Whether to run the model in inference mode on the test set.")
@@ -82,6 +80,9 @@ flags.DEFINE_integer(
 
 flags.DEFINE_integer("save_checkpoints_steps", 1000,
                      "How often to save the model checkpoint.")
+
+flags.DEFINE_integer("max_sequence_length", 128,
+                     "Maximum sequence length")
 
 
 def get_available_gpus():
@@ -125,6 +126,12 @@ def file_based_input_fn_builder(input_files, is_training, batch_size):
             d = d.shuffle(buffer_size=100)
 
         d = d.map(lambda record: _decode_record(record, name_to_features))
+
+        d = d.map(lambda src_ids, tgt_ids, label: (
+            src_ids[:FLAGS.max_sequence_length],
+            tgt_ids[:FLAGS.max_sequence_length],
+            label
+        ))
 
         d = d.map(lambda src_ids, tgt_ids, label: (
             tf.concat([[bos_id], src_ids, [eos_id]], 0),
@@ -331,21 +338,21 @@ def main(_):
         tf.logging.info("***** Running training *****")
         tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
         tf.logging.info("  Num steps = %d", FLAGS.num_train_steps)
+
         train_input_fn = file_based_input_fn_builder(
             input_files=train_files,
             is_training=True,
             batch_size=FLAGS.train_batch_size)
-        estimator.train(input_fn=train_input_fn, max_steps=FLAGS.num_train_steps)
 
-    if FLAGS.do_eval:
+        train_spec = tf.estimator.TrainSpec(
+            input_fn=train_input_fn,
+            max_steps=FLAGS.num_train_steps
+        )
+
         eval_files = os.listdir(FLAGS.data_dir)
         eval_files = [os.path.join(FLAGS.data_dir, path) for path in eval_files if "dev" in path]
-        tf.logging.info("***** Running evaluation *****")
-        tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
-
         # This tells the estimator to run through the entire set.
 
-        eval_steps = None
         # However, if running eval on the TPU, you will need to specify the
         # number of steps.
 
@@ -354,14 +361,16 @@ def main(_):
             is_training=False,
             batch_size=FLAGS.eval_batch_size)
 
-        result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
+        eval_spec = tf.estimator.EvalSpec(
+            input_fn=eval_input_fn,
+            steps=None
+        )
 
-        output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
-        with tf.gfile.GFile(output_eval_file, "w") as writer:
-            tf.logging.info("***** Eval results *****")
-            for key in sorted(result.keys()):
-                tf.logging.info("  %s = %s", key, str(result[key]))
-                writer.write("%s = %s\n" % (key, str(result[key])))
+        tf.estimator.train_and_evaluate(
+            estimator,
+            train_spec,
+            eval_spec
+        )
 
     if FLAGS.do_predict:
 
