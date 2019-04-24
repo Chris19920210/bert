@@ -56,6 +56,8 @@ flags.DEFINE_string(
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
+flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
+
 flags.DEFINE_bool(
     "do_predict", False,
     "Whether to run the model in inference mode on the test set.")
@@ -70,7 +72,7 @@ flags.DEFINE_integer("predict_batch_size", 8, "Total batch size for predict.")
 
 flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
 
-flags.DEFINE_float("num_train_steps", 1000000,
+flags.DEFINE_float("num_train_steps", 100000,
                    "Total number of training epochs to perform.")
 
 flags.DEFINE_integer(
@@ -82,7 +84,7 @@ flags.DEFINE_integer("save_checkpoints_steps", 1000,
                      "How often to save the model checkpoint.")
 
 flags.DEFINE_integer("max_sequence_length", 128,
-                     "Maximum sequence length")
+                     "maximum sequence length")
 
 
 def get_available_gpus():
@@ -128,15 +130,16 @@ def file_based_input_fn_builder(input_files, is_training, batch_size):
         d = d.map(lambda record: _decode_record(record, name_to_features))
 
         d = d.map(lambda src_ids, tgt_ids, label: (
+            tf.concat([[bos_id], src_ids, [eos_id]], 0),
+            tf.concat([tgt_ids, [eos_id]], 0),
+            label))
+
+        d = d.map(lambda src_ids, tgt_ids, label: (
             src_ids[:FLAGS.max_sequence_length],
             tgt_ids[:FLAGS.max_sequence_length],
             label
         ))
 
-        d = d.map(lambda src_ids, tgt_ids, label: (
-            tf.concat([[bos_id], src_ids, [eos_id]], 0),
-            tf.concat([tgt_ids, [eos_id]], 0),
-            label))
 
         d = d.map(lambda src_ids, tgt_ids, label: (
             tf.concat([src_ids, tgt_ids], 0),
@@ -163,14 +166,15 @@ def file_based_input_fn_builder(input_files, is_training, batch_size):
                     0))  # src_len -- unused
 
         batched_dataset = batching_func(d)
-        batched_dataset = batched_dataset.map(
-            lambda input_ids, segment_ids, label_ids:
-            {'input_ids': input_ids,
-             'segment_ids': segment_ids,
-             'label_ids': label_ids}
-        )
+        features = batched_dataset.map(lambda input_ids, segment_ids, label:
+        {
+            "input_ids": input_ids,
+            "segment_ids": segment_ids,
+            "label_ids": label
 
-        return batched_dataset
+        })
+
+        return features
 
     return input_fn
 
@@ -268,18 +272,15 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
             )
         elif mode == tf.estimator.ModeKeys.EVAL:
 
-            def metric_fn(per_example_loss, label_ids, logits):
-                predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)
-                accuracy = tf.metrics.accuracy(
+            predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)
+            accuracy = tf.metrics.accuracy(
                     labels=label_ids, predictions=predictions)
-                loss = tf.metrics.mean(values=per_example_loss)
-                return {
+            loss = tf.metrics.mean(values=per_example_loss)
+            eval_metrics = {
                     "eval_accuracy": accuracy,
                     "eval_loss": loss,
                 }
 
-            eval_metrics = (metric_fn,
-                            [per_example_loss, label_ids, logits])
             output_spec = tf.estimator.EstimatorSpec(
                 mode=mode,
                 loss=total_loss,
