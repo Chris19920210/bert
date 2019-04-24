@@ -140,6 +140,10 @@ class AdamWeightDecayOptimizer(tf.train.Optimizer):
         self._create_non_slot_variable(
             initial_value=self._beta2, name="beta2_power", colocate_with=first_var)
 
+        for v in var_list:
+            self._zeros_slot(v, "m", self._name)
+            self._zeros_slot(v, "v", self._name)
+
     def _prepare(self):
         lr = self._call_if_callable(self._lr)
         beta1 = self._call_if_callable(self._beta1)
