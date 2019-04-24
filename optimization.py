@@ -261,7 +261,7 @@ class AdamWeightDecayOptimizer(tf.train.Optimizer):
         param_name = var.name
 
         if self._do_use_weight_decay(param_name):
-            update = scatter_add(update, indices, _weight_decay_rate_t * var)
+            update += _weight_decay_rate_t * var
 
         update_with_lr = lr * update
 
