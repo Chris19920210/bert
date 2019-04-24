@@ -291,7 +291,7 @@ class AdamWeightDecayOptimizer(tf.train.Optimizer):
 
     def _do_use_weight_decay(self, param_name):
         """Whether to use L2 weight decay for `param_name`."""
-        if not self.weight_decay_rate:
+        if not self._weight_decay_rate:
             return False
         if self.exclude_from_weight_decay:
             for r in self.exclude_from_weight_decay:
