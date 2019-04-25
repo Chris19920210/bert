@@ -20,33 +20,29 @@ args = parser.parse_args()
 if __name__ == '__main__':
     src_sentences = []
     tgt_sentences = []
+
     src_writer = open(os.path.join(args.data_dir, "sentence-pair-src-{0}".format(args.suffix)), 'w')
     tgt_writer = open(os.path.join(args.data_dir, "sentence-pair-tgt-{0}".format(args.suffix)), 'w')
     label_writer = open(os.path.join(args.data_dir, "sentence-pair-label-{0}".format(args.suffix)), 'w')
     with open(os.path.join(args.data_dir, args.src), 'r') as src_reader,\
         open(os.path.join(args.data_dir, args.tgt), 'r') as tgt_reader:
         for src_line, tgt_line in zip(src_reader.readlines(), tgt_reader.readlines()):
-            if args.ratio < np.random.uniform():
-                src_writer.write(src_line)
-                tgt_writer.write(tgt_line)
-                label_writer.write("1")
-                label_writer.write("\n")
-            else:
-                src_sentences.append(src_line)
-                tgt_sentences.append(tgt_line)
-
-    assert len(src_sentences) == len(tgt_sentences)
-
-    total_negative_samples = len(src_sentences)
+            src_sentences.append(src_line)
+            tgt_sentences.append(tgt_line)
 
     for i, each in enumerate(src_sentences):
-        index = np.random.randint(0, total_negative_samples)
-        while index == i:
-            index = np.random.randint(0, total_negative_samples)
         src_writer.write(each)
+        if args.ratio < np.random.uniform():
+            index = i
+            label = "1"
+        else:
+            index = np.random.randint(0, len(src_sentences))
+            while index == i:
+                index = np.random.randint(0, len(src_sentences))
+            label = "0"
         tgt_writer.write(tgt_sentences[index])
-        label_writer.write("0")
-        label_writer.write("\n")
+        label_writer.write(label)
+        label_writer.write('\n')
 
     src_writer.close()
     tgt_writer.close()

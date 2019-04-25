@@ -24,7 +24,7 @@ import optimization
 from SpmTextEncoder import BOS_ID, EOS_ID, PAD_ID
 import tensorflow as tf
 from tensorflow.python.client import device_lib
-
+import sys
 
 flags = tf.flags
 
@@ -194,6 +194,8 @@ def file_based_input_fn_builder(input_files, is_training, batch_size):
 def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
                  labels, num_labels, use_one_hot_embeddings):
     """Creates a classification model."""
+
+
     model = modeling.BertModel(
         config=bert_config,
         is_training=is_training,
@@ -224,11 +226,14 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
             output_layer = tf.nn.dropout(output_layer, keep_prob=0.9)
 
         logits = tf.matmul(output_layer, output_weights, transpose_b=True)
+
         logits = tf.nn.bias_add(logits, output_bias)
         probabilities = tf.nn.softmax(logits, axis=-1)
         log_probs = tf.nn.log_softmax(logits, axis=-1)
+        #log_probs = tf.Print(log_probs, [log_probs], "log_probs_{0}: ".format(is_training), summarize=10)
 
         one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
+        #one_hot_labels = tf.Print(one_hot_labels, [one_hot_labels], 'one hot_{0}: '.format(is_training), summarize=10)
 
         label_smoothing = tf.constant(FLAGS.label_smoothing, dtype=tf.float32)
 
@@ -286,10 +291,9 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
             output_spec = tf.estimator.EstimatorSpec(
                 mode=mode,
                 loss=total_loss,
-                train_op=train_op
+                train_op=train_op,
             )
         elif mode == tf.estimator.ModeKeys.EVAL:
-
             predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)
             accuracy = tf.metrics.accuracy(
                     labels=label_ids, predictions=predictions)
@@ -333,7 +337,8 @@ def main(_):
         model_dir=FLAGS.output_dir,
         save_checkpoints_steps=FLAGS.save_checkpoints_steps,
         keep_checkpoint_max=20,
-        train_distribute=mirrored_strategy
+        train_distribute=mirrored_strategy,
+        eval_distribute=mirrored_strategy
     )
 
     model_fn = model_fn_builder(
@@ -383,7 +388,7 @@ def main(_):
         eval_spec = tf.estimator.EvalSpec(
             input_fn=eval_input_fn,
             steps=None,
-            throttle_secs=1800
+            throttle_secs=30
         )
 
         tf.estimator.train_and_evaluate(
