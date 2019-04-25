@@ -86,6 +86,9 @@ flags.DEFINE_integer("save_checkpoints_steps", 1000,
 flags.DEFINE_integer("max_sequence_length", 128,
                      "maximum sequence length")
 
+flags.DEFINE_float("label_smoothing", 0.1,
+                   "label smoothing param")
+
 
 def get_available_gpus():
     local_device_protos = device_lib.list_local_devices()
@@ -140,11 +143,17 @@ def file_based_input_fn_builder(input_files, is_training, batch_size):
             label
         ))
 
-
         d = d.map(lambda src_ids, tgt_ids, label: (
             tf.concat([src_ids, tgt_ids], 0),
             tf.concat([tf.zeros_like(src_ids), tf.ones_like(tgt_ids)], 0),
             label
+        ))
+
+        d = d.map(lambda input_ids, segment_ids, label_ids: (
+            input_ids,
+            segment_ids,
+            tf.ones_like(input_ids),
+            label_ids
         ))
 
         def batching_func(x):
@@ -156,6 +165,7 @@ def file_based_input_fn_builder(input_files, is_training, batch_size):
                 padded_shapes=(
                     tf.TensorShape([None]),  # src
                     tf.TensorShape([None]),  # tgt
+                    tf.TensorShape([None]),
                     tf.TensorShape([])),  # src_len
                 # Pad the source sequences with eos tokens.
                 # (Though notice we don't generally need to do this since
@@ -163,13 +173,15 @@ def file_based_input_fn_builder(input_files, is_training, batch_size):
                 padding_values=(
                     PAD_ID,  # src
                     PAD_ID,
+                    PAD_ID,
                     0))  # src_len -- unused
 
         batched_dataset = batching_func(d)
-        features = batched_dataset.map(lambda input_ids, segment_ids, label:
+        features = batched_dataset.map(lambda input_ids, segment_ids, input_mask, label:
         {
             "input_ids": input_ids,
             "segment_ids": segment_ids,
+            "input_mask": input_mask,
             "label_ids": label
 
         })
@@ -218,7 +230,12 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
 
         one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
 
+        label_smoothing = tf.constant(FLAGS.label_smoothing, dtype=tf.float32)
+
+        one_hot_labels = one_hot_labels*(1 - label_smoothing) + label_smoothing / num_labels
+
         per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
+
         loss = tf.reduce_mean(per_example_loss)
 
         return loss, per_example_loss, logits, probabilities
@@ -238,11 +255,12 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         input_ids = features["input_ids"]
         segment_ids = features["segment_ids"]
         label_ids = features["label_ids"]
+        input_mask = features["input_mask"]
 
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
         (total_loss, per_example_loss, logits, probabilities) = create_model(
-            bert_config, is_training, input_ids, None, segment_ids, label_ids,
+            bert_config, is_training, input_ids, input_mask, segment_ids, label_ids,
             num_labels, use_one_hot_embeddings)
 
         tvars = tf.trainable_variables()
@@ -364,7 +382,8 @@ def main(_):
 
         eval_spec = tf.estimator.EvalSpec(
             input_fn=eval_input_fn,
-            steps=None
+            steps=None,
+            throttle_secs=1800
         )
 
         tf.estimator.train_and_evaluate(

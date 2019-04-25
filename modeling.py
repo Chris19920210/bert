@@ -42,7 +42,8 @@ class BertConfig(object):
                attention_probs_dropout_prob=0.1,
                max_position_embeddings=512,
                type_vocab_size=16,
-               initializer_range=0.02):
+               initializer_range=0.02,
+               trainable_pos_embedding=False):
     """Constructs BertConfig.
 
     Args:
@@ -78,6 +79,7 @@ class BertConfig(object):
     self.max_position_embeddings = max_position_embeddings
     self.type_vocab_size = type_vocab_size
     self.initializer_range = initializer_range
+    self.trainable_pos_embedding = trainable_pos_embedding
 
   @classmethod
   def from_dict(cls, json_object):
@@ -191,7 +193,8 @@ class BertModel(object):
             position_embedding_name="position_embeddings",
             initializer_range=config.initializer_range,
             max_position_embeddings=config.max_position_embeddings,
-            dropout_prob=config.hidden_dropout_prob)
+            dropout_prob=config.hidden_dropout_prob,
+            trainable_pos_embeddding=config.trainable_pos_embedding)
 
       with tf.variable_scope("encoder"):
         # This converts a 2D mask of shape [batch_size, seq_length] to a 3D
@@ -434,7 +437,8 @@ def embedding_postprocessor(input_tensor,
                             position_embedding_name="position_embeddings",
                             initializer_range=0.02,
                             max_position_embeddings=512,
-                            dropout_prob=0.1):
+                            dropout_prob=0.1,
+                            trainable_pos_embeddding=False):
   """Performs various post-processing on a word embedding tensor.
 
   Args:
@@ -487,35 +491,39 @@ def embedding_postprocessor(input_tensor,
     output += token_type_embeddings
 
   if use_position_embeddings:
-    assert_op = tf.assert_less_equal(seq_length, max_position_embeddings)
-    with tf.control_dependencies([assert_op]):
-      full_position_embeddings = tf.get_variable(
-          name=position_embedding_name,
-          shape=[max_position_embeddings, width],
-          initializer=create_initializer(initializer_range))
-      # Since the position embedding table is a learned variable, we create it
-      # using a (long) sequence length `max_position_embeddings`. The actual
-      # sequence length might be shorter than this, for faster training of
-      # tasks that do not have long sequences.
-      #
-      # So `full_position_embeddings` is effectively an embedding table
-      # for position [0, 1, 2, ..., max_position_embeddings-1], and the current
-      # sequence has positions [0, 1, 2, ... seq_length-1], so we can just
-      # perform a slice.
-      position_embeddings = tf.slice(full_position_embeddings, [0, 0],
-                                     [seq_length, -1])
-      num_dims = len(output.shape.as_list())
+    if not trainable_pos_embeddding:
+      output = add_timing_signal(input_tensor, name=position_embedding_name)
 
-      # Only the last two dimensions are relevant (`seq_length` and `width`), so
-      # we broadcast among the first dimensions, which is typically just
-      # the batch size.
-      position_broadcast_shape = []
-      for _ in range(num_dims - 2):
-        position_broadcast_shape.append(1)
-      position_broadcast_shape.extend([seq_length, width])
-      position_embeddings = tf.reshape(position_embeddings,
-                                       position_broadcast_shape)
-      output += position_embeddings
+    else:
+      assert_op = tf.assert_less_equal(seq_length, max_position_embeddings)
+      with tf.control_dependencies([assert_op]):
+        full_position_embeddings = tf.get_variable(
+           name=position_embedding_name,
+           shape=[max_position_embeddings, width],
+           initializer=create_initializer(initializer_range))
+        # Since the position embedding table is a learned variable, we create it
+        # using a (long) sequence length `max_position_embeddings`. The actual
+        # sequence length might be shorter than this, for faster training of
+        # tasks that do not have long sequences.
+        #
+        # So `full_position_embeddings` is effectively an embedding table
+        # for position [0, 1, 2, ..., max_position_embeddings-1], and the current
+        # sequence has positions [0, 1, 2, ... seq_length-1], so we can just
+        # perform a slice.
+        position_embeddings = tf.slice(full_position_embeddings, [0, 0],
+                                     [seq_length, -1])
+        num_dims = len(output.shape.as_list())
+
+        # Only the last two dimensions are relevant (`seq_length` and `width`), so
+        # we broadcast among the first dimensions, which is typically just
+        # the batch size.
+        position_broadcast_shape = []
+        for _ in range(num_dims - 2):
+          position_broadcast_shape.append(1)
+        position_broadcast_shape.extend([seq_length, width])
+        position_embeddings = tf.reshape(position_embeddings,
+                                         position_broadcast_shape)
+        output += position_embeddings
 
   output = layer_norm_and_dropout(output, dropout_prob)
   return output
@@ -984,3 +992,39 @@ def assert_rank(tensor, expected_rank, name=None):
         "For the tensor `%s` in scope `%s`, the actual rank "
         "`%d` (shape = %s) is not equal to the expected rank `%s`" %
         (name, scope_name, actual_rank, str(tensor.shape), str(expected_rank)))
+
+
+def add_timing_signal(x, min_timescale=1.0, max_timescale=1.0e4, name=None):
+    """
+    This function adds a bunch of sinusoids of different frequencies to a
+    Tensor. See paper: Attention is all you need
+
+    :param x: A tensor with shape [batch, length, channels]
+    :param min_timescale: A floating point number
+    :param max_timescale: A floating point number
+    :param name: An optional string
+
+    :returns: a Tensor the same shape as x.
+    """
+
+    with tf.name_scope(name, default_name="add_timing_signal", values=[x]):
+        length = tf.shape(x)[1]
+        channels = tf.shape(x)[2]
+        position = tf.to_float(tf.range(length))
+        num_timescales = channels // 2
+
+        log_timescale_increment = (
+            math.log(float(max_timescale) / float(min_timescale)) /
+            (tf.to_float(num_timescales) - 1)
+        )
+        inv_timescales = min_timescale * tf.exp(
+            tf.to_float(tf.range(num_timescales)) * -log_timescale_increment
+        )
+
+        scaled_time = (tf.expand_dims(position, 1) *
+                       tf.expand_dims(inv_timescales, 0))
+        signal = tf.concat([tf.sin(scaled_time), tf.cos(scaled_time)], axis=1)
+        signal = tf.pad(signal, [[0, 0], [0, tf.mod(channels, 2)]])
+        signal = tf.reshape(signal, [1, length, channels])
+
+        return x + signal
