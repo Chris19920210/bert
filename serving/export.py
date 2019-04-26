@@ -364,10 +364,13 @@ def main(_):
         lambda: serving_input_fn,
         as_text=True)
 
+    ckpt_dir = os.path.expanduser(FLAGS.output_dir)
+    checkpoint_path = tf.train.latest_checkpoint(ckpt_dir)
+    export_dir = os.path.join(ckpt_dir, "export")
     exporter.export(
         estimator,
-        FLAGS.export_dir,
-        checkpoint_path=FLAGS.checkpoint_path,
+        export_dir,
+        checkpoint_path=checkpoint_path,
         eval_result=None,
         is_the_final_export=True)
 
