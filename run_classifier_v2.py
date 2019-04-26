@@ -309,7 +309,8 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         else:
             output_spec = tf.estimator.EstimatorSpec(
                 mode=mode,
-                predictions={"probabilities": probabilities}
+                predictions={"probabilities": probabilities},
+                export_outputs={'predict': tf.estimator.export.PredictOutput(outputs=probabilities)}
             )
         return output_spec
 
