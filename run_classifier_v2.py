@@ -56,8 +56,6 @@ flags.DEFINE_string(
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
-flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
-
 flags.DEFINE_bool(
     "do_predict", False,
     "Whether to run the model in inference mode on the test set.")
@@ -321,9 +319,9 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 def main(_):
     tf.logging.set_verbosity(tf.logging.INFO)
 
-    if not FLAGS.do_train and not FLAGS.do_eval and not FLAGS.do_predict:
+    if not FLAGS.do_train and not FLAGS.do_predict:
         raise ValueError(
-            "At least one of `do_train`, `do_eval` or `do_predict' must be True.")
+            "At least one of `do_train`, or `do_predict' must be True.")
 
     bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
 

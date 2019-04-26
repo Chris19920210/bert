@@ -374,6 +374,7 @@ def main(_):
         eval_result=None,
         is_the_final_export=True)
 
+
 if __name__ == "__main__":
     flags.mark_flag_as_required("data_dir")
     flags.mark_flag_as_required("bert_config_file")
