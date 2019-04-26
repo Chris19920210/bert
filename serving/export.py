@@ -22,7 +22,7 @@ import os
 import modeling
 from SpmTextEncoder import BOS_ID, EOS_ID, PAD_ID
 import tensorflow as tf
-from run_classifier_v2 import create_model, FLAGS
+from run_classifier_v2 import FLAGS, model_fn_builder
 
 
 def serving_input_fn_builder():
@@ -32,9 +32,6 @@ def serving_input_fn_builder():
         "src_ids": tf.VarLenFeature(tf.int64),
         "tgt_ids": tf.VarLenFeature(tf.int64),
     }
-
-    bos_id = tf.constant(BOS_ID, tf.int32)
-    eos_id = tf.constant(EOS_ID, tf.int32)
 
     def _decode_record(record, name_to_features):
         """Decodes a record to a TensorFlow example."""
@@ -56,6 +53,10 @@ def serving_input_fn_builder():
         # For training, we want a lot of parallel reading and shuffling.
         # For eval, we want no shuffling and parallel reading doesn't matter.
         # d = tf.data.TFRecordDataset(input_files)
+
+        bos_id = tf.constant(BOS_ID, tf.int32)
+        eos_id = tf.constant(EOS_ID, tf.int32)
+
         serialized_example = tf.placeholder(
             dtype=tf.string, shape=[None], name="serialized_example")
         d = tf.data.Dataset.from_tensor_slices(serialized_example)
@@ -121,51 +122,6 @@ def serving_input_fn_builder():
 
     return input_fn
 
-def model_fn_serving_builder(bert_config, num_labels, init_checkpoint, learning_rate,
-                     num_train_steps, num_warmup_steps, use_one_hot_embeddings):
-    """Returns `model_fn` closure for TPUEstimator."""
-
-    def model_fn(features, labels, mode, params):  # pylint: disable=unused-argument
-        """The `model_fn` for TPUEstimator."""
-
-        tf.logging.info("*** Features ***")
-        for name in sorted(features.keys()):
-            tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
-
-        input_ids = features["input_ids"]
-        segment_ids = features["segment_ids"]
-        label_ids = features["label_ids"]
-        input_mask = features["input_mask"]
-
-        is_prediction = True
-
-        (total_loss, per_example_loss, logits, probabilities) = create_model(
-            bert_config, False, input_ids, input_mask, segment_ids, label_ids,
-            num_labels, use_one_hot_embeddings, is_prediction)
-
-        tvars = tf.trainable_variables()
-        initialized_variable_names = {}
-        if init_checkpoint:
-            (assignment_map, initialized_variable_names
-             ) = modeling.get_assignment_map_from_checkpoint(tvars, init_checkpoint)
-            tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
-
-        tf.logging.info("**** Trainable Variables ****")
-        for var in tvars:
-            init_string = ""
-            if var.name in initialized_variable_names:
-                init_string = ", *INIT_FROM_CKPT*"
-            tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape,
-                            init_string)
-
-        output_spec = tf.estimator.EstimatorSpec(
-            mode=mode,
-            predictions={"probabilities": probabilities},
-            export_outputs={'predict':tf.estimator.export.PredictOutput(outputs=logits)}
-        )
-        return output_spec
-
-    return model_fn
 
 def main(_):
     tf.logging.set_verbosity(tf.logging.INFO)
@@ -178,7 +134,7 @@ def main(_):
         model_dir=FLAGS.output_dir,
     )
 
-    model_fn = model_fn_serving_builder(
+    model_fn = model_fn_builder(
         bert_config=bert_config,
         num_labels=FLAGS.num_classes,
         init_checkpoint=FLAGS.init_checkpoint,
@@ -213,8 +169,7 @@ def main(_):
 
 
 if __name__ == "__main__":
-    #flags.mark_flag_as_required("bert_config_file")
-    #flags.mark_flag_as_required("output_dir")
+
     tf.app.run()
 
 
