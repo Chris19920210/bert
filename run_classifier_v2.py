@@ -192,9 +192,8 @@ def file_based_input_fn_builder(input_files, is_training, batch_size):
 
 
 def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
-                 labels, num_labels, use_one_hot_embeddings):
+                 labels, num_labels, use_one_hot_embeddings, is_prediction=False):
     """Creates a classification model."""
-
 
     model = modeling.BertModel(
         config=bert_config,
@@ -229,11 +228,11 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
 
         logits = tf.nn.bias_add(logits, output_bias)
         probabilities = tf.nn.softmax(logits, axis=-1)
+        if is_prediction:
+            return tf.constant(0.0, dtype=tf.float32), tf.constant(0.0, dtype=tf.float32), logits, probabilities
         log_probs = tf.nn.log_softmax(logits, axis=-1)
-        #log_probs = tf.Print(log_probs, [log_probs], "log_probs_{0}: ".format(is_training), summarize=10)
 
         one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
-        #one_hot_labels = tf.Print(one_hot_labels, [one_hot_labels], 'one hot_{0}: '.format(is_training), summarize=10)
 
         label_smoothing = tf.constant(FLAGS.label_smoothing, dtype=tf.float32)
 
@@ -263,10 +262,11 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         input_mask = features["input_mask"]
 
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
+        is_prediction = (mode == tf.estimator.ModeKeys.PREDICT)
 
         (total_loss, per_example_loss, logits, probabilities) = create_model(
             bert_config, is_training, input_ids, input_mask, segment_ids, label_ids,
-            num_labels, use_one_hot_embeddings)
+            num_labels, use_one_hot_embeddings, is_prediction)
 
         tvars = tf.trainable_variables()
         initialized_variable_names = {}
