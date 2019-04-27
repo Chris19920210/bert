@@ -56,6 +56,8 @@ flags.DEFINE_string(
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
+flags.DEFINE_bool("do_eval", False, "Whether to run training.")
+
 flags.DEFINE_bool(
     "do_predict", False,
     "Whether to run the model in inference mode on the test set.")
@@ -320,7 +322,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 def main(_):
     tf.logging.set_verbosity(tf.logging.INFO)
 
-    if not FLAGS.do_train and not FLAGS.do_predict:
+    if not FLAGS.do_train and not FLAGS.do_predict and not FLAGS.do_eval:
         raise ValueError(
             "At least one of `do_train`, or `do_predict' must be True.")
 
@@ -395,6 +397,30 @@ def main(_):
             train_spec,
             eval_spec
         )
+
+    if FLAGS.do_eval:
+        eval_files = os.listdir(FLAGS.data_dir)
+        eval_files = [os.path.join(FLAGS.data_dir, path) for path in eval_files if "pred" in path]
+
+        # This tells the estimator to run through the entire set.
+        eval_steps = None
+        # However, if running eval on the TPU, you will need to specify the
+        # number of steps.
+
+        eval_input_fn = file_based_input_fn_builder(
+            input_files=eval_files,
+            is_training=False,
+            batch_size=FLAGS.eval_batch_size)
+
+        result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
+
+        output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
+
+        with tf.gfile.GFile(output_eval_file, "w") as writer:
+            tf.logging.info("***** Eval results *****")
+            for key in sorted(result.keys()):
+                tf.logging.info("  %s = %s", key, str(result[key]))
+                writer.write("%s = %s\n" % (key, str(result[key])))
 
     if FLAGS.do_predict:
 
