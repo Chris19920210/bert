@@ -121,7 +121,6 @@ class BertAlignClient(object):
     def __init__(self,
                  data_dir,
                  bert_config_file,
-                 output_dir,
                  bert_usr_dir,
                  user_dict,
                  src_vacob_model,

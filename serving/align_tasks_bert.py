@@ -13,10 +13,12 @@ import traceback
 class AlignTask(celery.Task):
     servers = os.environ['SERVERS'].split(" ")
     servable_names = os.environ['SERVABLE_NAMES'].split(" ")
-    problem = os.environ["PROBLEM"]
     data_dir = os.environ["DATA_DIR"]
+    bert_config_file = os.environ["BERT_CONFIG_FILE"]
+    bert_usr_dir = os.environ["BERT_USR_DIR"]
+    src_vocab_model = os.environ["SRC_VOCAB_MODEL"]
+    tgt_vocab_model = os.environ["TGT_VOCAB_MODEL"]
     timeout_secs = os.environ["TIMEOUT_SECS"]
-    t2t_usr_dir = os.environ["T2T_USR_DIR"]
     user_dict = os.environ["USER_DICT"]
     index = np.random.randint(len(servable_names))
     server = servers[index]
@@ -27,10 +29,12 @@ class AlignTask(celery.Task):
 
     for server, servable_name in zip(servers, servable_names):
         _align_clients.append(BertAlignClient(
-            t2t_usr_dir,
-            problem,
             data_dir,
+            bert_config_file,
+            bert_usr_dir,
             user_dict,
+            src_vacob_model,
+            tgt_vocab_model,
             server,
             servable_name,
             int(timeout_secs)
