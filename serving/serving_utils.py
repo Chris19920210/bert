@@ -26,8 +26,7 @@ import tensorflow as tf
 from tensorflow_serving.apis import predict_pb2
 from tensorflow_serving.apis import prediction_service_pb2_grpc
 from mosestokenizer import MosesTokenizer, MosesDetokenizer
-from tensor2tensor.utils import registry
-from tensor2tensor.utils import usr_dir
+from SpmTextEncoder import SpmTextEncoder
 import jieba
 from word_substitute import WordSubstitution
 import os
@@ -89,11 +88,11 @@ def make_grpc_request_fn(servable_name, server, timeout_secs):
         request = predict_pb2.PredictRequest()
         request.model_spec.name = servable_name
         assert len(src_examples) == len(tgt_examples)
-        request.inputs["sources"].CopyFrom(
+        request.inputs["src_ids"].CopyFrom(
             tf.contrib.util.make_tensor_proto(
                 [ex.SerializeToString() for ex in src_examples], shape=[len(src_examples)]))
 
-        request.inputs["targets"].CopyFrom(
+        request.inputs["tgt_ids"].CopyFrom(
             tf.contrib.util.make_tensor_proto(
                 [ex.SerializeToString() for ex in tgt_examples], shape=[len(tgt_examples)]))
 
@@ -108,10 +107,10 @@ def predict(src_ids_list, tgt_ids_list, request_fn):
     """Encodes inputs, makes request to deployed TF model, and decodes outputs."""
     assert isinstance(src_ids_list, list)
     assert isinstance(tgt_ids_list, list)
-    src_examples = [_make_example(src_ids, "sources")
+    src_examples = [_make_example(src_ids, "src_ids")
                     for src_ids in src_ids_list]
 
-    tgt_examples = [_make_example(tgt_ids, "targets")
+    tgt_examples = [_make_example(tgt_ids, "tgt_ids")
                     for tgt_ids in tgt_ids_list]
 
     predictions = request_fn(src_examples, tgt_examples)
@@ -126,21 +125,21 @@ class BertAlignClient(object):
                  output_dir,
                  bert_usr_dir,
                  user_dict,
+                 src_vacob_model,
+                 tgt_vocab_model,
                  server,
                  servable_name,
                  timeout_secs
                  ):
         tf.logging.set_verbosity(tf.logging.INFO)
         usr_dir.import_usr_dir(bert_usr_dir)
-        self.src_encoder = None # TODO
-        self.tgt_encoder = None # TODO
+        self.src_encoder = SpmTextEncoder(src_vacob_model)
+        self.tgt_encoder = SpmTextEncoder(tgt_vocab_model)
 
         self.en_tokenizer = MosesTokenizer('en')
         self.zh_detokenizer = MosesDetokenizer("ko")
         jieba.load_userdict(user_dict)
         self.request_fn = make_request_fn(server, servable_name, timeout_secs)
-
-        self.word_substitute = WordSubstitution(src_encoder=self.src_encoder, tgt_encoder=self.tgt_encoder)
 
     def src_encode(self, s):
         tokens = self.en_tokenizer(s)
@@ -162,18 +161,7 @@ class BertAlignClient(object):
         """
         src_ids_list = list(map(lambda x: self.src_encode(x['origin']), msg["data"]))
         tgt_ids_list = list(map(lambda x: self.tgt_encode(x['translate']), msg["data"]))
-        align_matrices = predict(src_ids_list, tgt_ids_list, self.request_fn)
-        offsets = [[0] * len(x) for x in src_ids_list]
-        for term in msg["terms"]:
-            origins = self.en_tokenizer(term['origin'])
-            tgt_ids_list = self.word_substitute.substitute(origins,
-                                                           term['translate'],
-                                                           src_ids_list,
-                                                           tgt_ids_list,
-                                                           align_matrices,
-                                                           offsets)
+        results = predict(src_ids_list, tgt_ids_list, self.request_fn)
 
-        for i, tgt_ids in enumerate(tgt_ids_list):
-            msg["data"][i]["translate"] = self.tgt_decode(tgt_ids)
-
+        msg['data']['results'] = results
         return msg
