@@ -121,7 +121,6 @@ class BertAlignClient(object):
     def __init__(self,
                  data_dir,
                  bert_config_file,
-                 bert_usr_dir,
                  user_dict,
                  src_vacob_model,
                  tgt_vocab_model,
@@ -130,7 +129,6 @@ class BertAlignClient(object):
                  timeout_secs
                  ):
         tf.logging.set_verbosity(tf.logging.INFO)
-        usr_dir.import_usr_dir(bert_usr_dir)
         self.src_encoder = SpmTextEncoder(src_vacob_model)
         self.tgt_encoder = SpmTextEncoder(tgt_vocab_model)
 

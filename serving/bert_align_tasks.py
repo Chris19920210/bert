@@ -15,7 +15,6 @@ class AlignTask(celery.Task):
     servable_names = os.environ['SERVABLE_NAMES'].split(" ")
     data_dir = os.environ["DATA_DIR"]
     bert_config_file = os.environ["BERT_CONFIG_FILE"]
-    bert_usr_dir = os.environ["BERT_USR_DIR"]
     src_vocab_model = os.environ["SRC_VOCAB_MODEL"]
     tgt_vocab_model = os.environ["TGT_VOCAB_MODEL"]
     timeout_secs = os.environ["TIMEOUT_SECS"]
@@ -31,9 +30,8 @@ class AlignTask(celery.Task):
         _align_clients.append(BertAlignClient(
             data_dir,
             bert_config_file,
-            bert_usr_dir,
             user_dict,
-            src_vacob_model,
+            src_vocab_model,
             tgt_vocab_model,
             server,
             servable_name,
