@@ -1,5 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
 from celery import Celery
 import celery
 from serving_utils import BertAlignClient

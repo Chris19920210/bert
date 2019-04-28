@@ -1,5 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
 import tcelery
 import bert_align_tasks
 import argparse
