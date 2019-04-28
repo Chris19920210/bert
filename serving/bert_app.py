@@ -1,5 +1,5 @@
 import tcelery
-import align_tasks_bert
+import bert_align_tasks
 import argparse
 import json
 import logging
@@ -60,7 +60,7 @@ class AsyncAppBertHandler(MyAppBaseHandler):
         if not (content_type and content_type.lower().startswith('application/json')):
             MyAppException(reason="Wrong data format, needs json", status_code=400)
         logger.info(self.request.body.decode("utf-8"))
-        res = yield gen.Task(align_tasks_bert.alignment.apply_async, args=[self.request.body])
+        res = yield gen.Task(bert_align_tasks.alignment.apply_async, args=[self.request.body])
         ret = res.result
         self.write(ret)
         logger.info(ret)
@@ -73,7 +73,7 @@ class AsyncAppBertHandler(MyAppBaseHandler):
         if not (content_type and content_type.lower().startswith('application/json')):
             MyAppException(reason="Wrong data format, needs json", status_code=400)
         logger.info(self.request.body.decode("utf-8"))
-        res = yield gen.Task(align_tasks_bert.alignment.apply_async, args=[self.request.body])
+        res = yield gen.Task(bert_align_tasks.alignment.apply_async, args=[self.request.body])
         ret = res.result
         self.write(ret)
         logger.info(ret)

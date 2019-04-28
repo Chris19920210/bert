@@ -10,7 +10,7 @@ import traceback
 """Celery asynchronous task"""
 
 
-class AlignTask(celery.Task):
+class BertAlignTask(celery.Task):
     servers = os.environ['SERVERS'].split(" ")
     servable_names = os.environ['SERVABLE_NAMES'].split(" ")
     data_dir = os.environ["DATA_DIR"]
@@ -64,7 +64,7 @@ app = Celery("tasks_align_bert",
 app.config_from_object("celeryconfig_align_bert")
 
 
-@app.task(name="tasks_align_bert.alignment", base=AlignTask, bind=True, max_retries=int(os.environ['MAX_RETRIES']))
+@app.task(name="tasks_align_bert.alignment", base=BertAlignTask, bind=True, max_retries=int(os.environ['MAX_RETRIES']))
 def alignment(self, msg):
     try:
         source = json.loads(msg, strict=False)
