@@ -28,7 +28,6 @@ from tensorflow_serving.apis import prediction_service_pb2_grpc
 from mosestokenizer import MosesTokenizer, MosesDetokenizer
 from SpmTextEncoder import SpmTextEncoder
 import jieba
-from word_substitute import WordSubstitution
 import os
 
 
