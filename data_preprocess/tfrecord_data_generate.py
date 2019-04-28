@@ -53,6 +53,7 @@ def example_generator(dir_name, tag="train"):
 def main(_):
     train_shards = 100
     dev_shards = 1
+    pred_shards = 1
     train_file_names = [os.path.join(FLAGS.data_dir, "{0}-{1}-train-000{2}-of-00{3}"
                                      .format(FLAGS.src, FLAGS.tgt, i, train_shards))
                         for i in range(train_shards)]
@@ -61,17 +62,27 @@ def main(_):
                                    .format(FLAGS.src, FLAGS.tgt, i, dev_shards))
                       for i in range(dev_shards)]
 
+    pred_file_names = [os.path.join(FLAGS.data_dir, "{0}-{1}-pred-000{2}-of-00{3}"
+                                    .format(FLAGS.src, FLAGS.tgt, i, pred_shards))
+                       for i in range(pred_shards)]
+
     train_generator = example_generator(FLAGS.tmp_dir, "train")
 
     eval_generator = example_generator(FLAGS.tmp_dir, "dev")
+
+    pred_generator = example_generator(FLAGS.tmp_dir, "pred")
 
     generator_utils.generate_files(train_generator, train_file_names, cycle_every_n=10)
 
     generator_utils.generate_files(eval_generator, dev_file_names, cycle_every_n=10)
 
+    generator_utils.generate_files(pred_generator, pred_file_names, cycle_every_n=10)
+
     generator_utils.shuffle_dataset(train_file_names)
 
     generator_utils.shuffle_dataset(dev_file_names)
+
+    generator_utils.shuffle_dataset(pred_file_names)
 
 
 if __name__ == '__main__':
