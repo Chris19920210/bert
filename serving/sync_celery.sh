@@ -14,11 +14,11 @@ export USER_DICT=$BASE_DIR/dicts.txt
 export SRC_VOCAB_MODEL=$VOCAB_DIR/vocab.sp_enzh_ai32k.32000.subwords.en.model
 export TGT_VOCAB_MODEL=$VOCAB_DIR/vocab.sp_enzh_ai32k.32000.subwords.zh.model
 export SERVERS="127.0.0.1:9000"
-export SERVABLE_NAMES="bertaligner"
+export SERVABLE_NAMES="bert_model"
 export TIMEOUT_SECS=1000
 export MAX_RETRIES=4
 export REDIS_HOST=127.0.0.1
 export REDIS_PORT=6379
-export NUM_ALIGNER=8
+export NUM_ALIGNER=4
 
-celery -A $TASK worker --loglevel=INFO --concurrency=8
+celery -A $TASK worker --loglevel=INFO --concurrency=4

@@ -41,7 +41,7 @@ su nmt
 ```
 tensorflow_model_server \
   --port=9000 \
-  --model_name=my_bert \
+  --model_name=bert_model \
   --model_base_path=/export
 ```
 
