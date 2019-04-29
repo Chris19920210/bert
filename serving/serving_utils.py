@@ -85,18 +85,13 @@ def make_grpc_request_fn(servable_name, server, timeout_secs):
     """Wraps function to make grpc requests with runtime args."""
     stub = _create_stub(server)
 
-    def _make_grpc_request(src_examples, tgt_examples):
+    def _make_grpc_request(examples):
         """Builds and sends request to TensorFlow model server."""
         request = predict_pb2.PredictRequest()
         request.model_spec.name = servable_name
-        assert len(src_examples) == len(tgt_examples)
-        request.inputs["src_ids"].CopyFrom(
+        request.inputs["serialized_example"].CopyFrom(
             tf.contrib.util.make_tensor_proto(
-                [ex.SerializeToString() for ex in src_examples], shape=[len(src_examples)]))
-
-        request.inputs["tgt_ids"].CopyFrom(
-            tf.contrib.util.make_tensor_proto(
-                [ex.SerializeToString() for ex in tgt_examples], shape=[len(tgt_examples)]))
+                [ex.SerializeToString() for ex in examples], shape=[len(examples)]))
 
         response = stub.Predict(request, timeout_secs)
         outputs = tf.make_ndarray(response.outputs["outputs"])
