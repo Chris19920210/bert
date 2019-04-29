@@ -63,7 +63,6 @@ app = Celery("tasks_align_bert",
              accept_content=['json'],
              result_persistent=False
              )
-app.config_from_object("celeryconfig_align_bert")
 
 
 @app.task(name="tasks_align_bert.alignment", base=BertAlignTask, bind=True, max_retries=int(os.environ['MAX_RETRIES']))

@@ -1,11 +1,11 @@
 #!/bin/bash
 BASE_DIR=/bert
 WORK_DIR=$BASE_DIR/serving
-VOCAB_DIR=/vocab/spm_32k
+VOCAB_DIR=/vocab/sp_32k
 TASK=bert_align_tasks
 export PYTHONPATH=$BASE_DIR:$BASE_DIR/data_preprocess:$BASE_DIR/serving:$PYTHONPATH
 export MQ_USER=nmt
-export MQ_PASSWORD=dip_gpui@g_2
+export MQ_PASSWORD=dip_gpu
 export MQ_HOST=127.0.0.1
 export MQ_PORT=5672
 export DATA_DIR=/export
