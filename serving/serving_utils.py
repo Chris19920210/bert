@@ -89,12 +89,12 @@ def make_grpc_request_fn(servable_name, server, timeout_secs):
         """Builds and sends request to TensorFlow model server."""
         request = predict_pb2.PredictRequest()
         request.model_spec.name = servable_name
-        request.inputs["serialized_example"].CopyFrom(
+        request.inputs["input"].CopyFrom(
             tf.contrib.util.make_tensor_proto(
                 [ex.SerializeToString() for ex in examples], shape=[len(examples)]))
 
         response = stub.Predict(request, timeout_secs)
-        outputs = tf.make_ndarray(response.outputs["outputs"])
+        outputs = tf.make_ndarray(response.outputs["probabilities"])
         return outputs
 
     return _make_grpc_request
@@ -154,5 +154,6 @@ class BertAlignClient(object):
         tgt_ids_list = list(map(lambda x: self.tgt_encode(x['translate']), msg["data"]))
         results = predict(src_ids_list, tgt_ids_list, self.request_fn)
 
-        msg['data']['results'] = results
+        print("===>", results.tolist())
+        msg['probabilities'] = results.tolist()
         return msg
