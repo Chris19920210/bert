@@ -114,8 +114,6 @@ def predict(src_ids_list, tgt_ids_list, request_fn):
 
 class BertAlignClient(object):
     def __init__(self,
-                 data_dir,
-                 bert_config_file,
                  user_dict,
                  src_vacob_model,
                  tgt_vocab_model,
@@ -153,7 +151,6 @@ class BertAlignClient(object):
         src_ids_list = list(map(lambda x: self.src_encode(x['origin']), msg["data"]))
         tgt_ids_list = list(map(lambda x: self.tgt_encode(x['translate']), msg["data"]))
         results = predict(src_ids_list, tgt_ids_list, self.request_fn)
-
-        print("===>", results.tolist())
-        msg['probabilities'] = results.tolist()
+        keys = list(map(lambda x: x["key"], msg["data"]))
+        msg['probabilities'] = [{"key": k, "score": v[1]} for k, v in zip(keys, results.tolist())]
         return msg
