@@ -31,8 +31,9 @@ import jieba
 import os
 
 
-def _make_example(ids,
-                  feature_name="sources"):
+def _make_example(src_ids, tgt_ids,
+                  src_name="src_ids",
+                  tgt_name="tgt_ids"):
     """Make a tf.train.Example for the problem.
 
     features[input_feature_name] = input_ids
@@ -47,8 +48,10 @@ def _make_example(ids,
       tf.train.Example
     """
     features = {
-        feature_name:
-            tf.train.Feature(int64_list=tf.train.Int64List(value=ids))
+        src_name:
+            tf.train.Feature(int64_list=tf.train.Int64List(value=src_ids)),
+        tgt_name:
+            tf.train.Feature(int64_list=tf.train.Int64List(value=tgt_ids))
     }
 
     return tf.train.Example(features=tf.train.Features(feature=features))
@@ -106,13 +109,10 @@ def predict(src_ids_list, tgt_ids_list, request_fn):
     """Encodes inputs, makes request to deployed TF model, and decodes outputs."""
     assert isinstance(src_ids_list, list)
     assert isinstance(tgt_ids_list, list)
-    src_examples = [_make_example(src_ids, "src_ids")
-                    for src_ids in src_ids_list]
+    examples = [_make_example(src_ids, tgt_ids, "src_ids", "tgt_ids")
+                    for src_ids, tgt_ids in zip(src_ids_list, tgt_ids_list)]
 
-    tgt_examples = [_make_example(tgt_ids, "tgt_ids")
-                    for tgt_ids in tgt_ids_list]
-
-    predictions = request_fn(src_examples, tgt_examples)
+    predictions = request_fn(examples)
 
     return predictions
 
