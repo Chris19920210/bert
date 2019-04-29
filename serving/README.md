@@ -32,6 +32,7 @@ rabbitmqctl set_permissions -p myvhost nmt ".*" ".*" ".*"
 apt install sudo
 adduser nmt
 usermod -aG sudo nmt
+gpasswd -a nmt root
 su nmt
 ```
 
