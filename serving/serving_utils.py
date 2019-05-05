@@ -25,10 +25,10 @@ from tensor2tensor.data_generators import text_encoder
 import tensorflow as tf
 from tensorflow_serving.apis import predict_pb2
 from tensorflow_serving.apis import prediction_service_pb2_grpc
-from mosestokenizer import MosesTokenizer, MosesDetokenizer
+from mosestokenizer import MosesTokenizer
 from SpmTextEncoder import SpmTextEncoder
 import jieba
-import os
+import MeCab
 
 
 def _make_example(src_ids, tgt_ids,
@@ -114,6 +114,26 @@ def predict(src_ids_list, tgt_ids_list, request_fn):
 
 class BertAlignClient(object):
     def __init__(self,
+                 src_vacob_model,
+                 tgt_vocab_model,
+                 server,
+                 servable_name,
+                 timeout_secs
+                 ):
+        pass
+
+    def src_encode(self, s):
+        pass
+
+    def tgt_encode(self, s):
+        pass
+
+    def query(self, msg):
+        pass
+
+
+class EnZhBertAlignClient(BertAlignClient):
+    def __init__(self,
                  user_dict,
                  src_vacob_model,
                  tgt_vocab_model,
@@ -126,9 +146,15 @@ class BertAlignClient(object):
         self.tgt_encoder = SpmTextEncoder(tgt_vocab_model)
 
         self.en_tokenizer = MosesTokenizer('en')
-        self.zh_detokenizer = MosesDetokenizer("ko")
         jieba.load_userdict(user_dict)
         self.request_fn = make_request_fn(server, servable_name, timeout_secs)
+        super(EnZhBertAlignClient).__init__(
+            src_vacob_model,
+            tgt_vocab_model,
+            server,
+            servable_name,
+            timeout_secs
+        )
 
     def src_encode(self, s):
         tokens = self.en_tokenizer(s)
@@ -138,9 +164,50 @@ class BertAlignClient(object):
         tokens = jieba.lcut(s)
         return _encode(" ".join(tokens), self.tgt_encoder, add_eos=False)
 
-    def tgt_decode(self, s):
-        tokens = _decode(s, self.tgt_encoder)
-        return self.zh_detokenizer(tokens.split(" "))
+    def query(self, msg):
+        """
+
+        :param msg: msg
+        :return: msg
+        """
+        src_ids_list = list(map(lambda x: self.src_encode(x['origin']), msg["data"]))
+        tgt_ids_list = list(map(lambda x: self.tgt_encode(x['translate']), msg["data"]))
+        results = predict(src_ids_list, tgt_ids_list, self.request_fn)
+        keys = list(map(lambda x: x["key"], msg["data"]))
+        msg['probabilities'] = [{"key": k, "score": v[1]} for k, v in zip(keys, results.tolist())]
+        return msg
+
+
+class EnJaBertAlignClient(BertAlignClient):
+    def __init__(self,
+                 src_vacob_model,
+                 tgt_vocab_model,
+                 server,
+                 servable_name,
+                 timeout_secs
+                 ):
+        tf.logging.set_verbosity(tf.logging.INFO)
+        self.src_encoder = SpmTextEncoder(src_vacob_model)
+        self.tgt_encoder = SpmTextEncoder(tgt_vocab_model)
+
+        self.en_tokenizer = MosesTokenizer('en')
+        self.mecab = MeCab.Tagger("-Owakati")
+        self.request_fn = make_request_fn(server, servable_name, timeout_secs)
+        super(EnJaBertAlignClient).__init__(
+            src_vacob_model,
+            tgt_vocab_model,
+            server,
+            servable_name,
+            timeout_secs
+        )
+
+    def src_encode(self, s):
+        tokens = self.en_tokenizer(s)
+        return _encode(" ".join(tokens), self.src_encoder, add_eos=False)
+
+    def tgt_encode(self, s):
+        tokens = self.mecab.parse(s).strip()
+        return _encode(tokens, self.tgt_encoder, add_eos=False)
 
     def query(self, msg):
         """

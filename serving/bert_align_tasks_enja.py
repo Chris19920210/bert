@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from celery import Celery
 import celery
-from serving_utils import BertAlignClient
+from serving_utils import EnJaBertAlignClient
 import numpy as np
 import json
 import logging
@@ -20,7 +20,6 @@ class BertAlignTask(celery.Task):
     src_vocab_model = os.environ["SRC_VOCAB_MODEL"]
     tgt_vocab_model = os.environ["TGT_VOCAB_MODEL"]
     timeout_secs = os.environ["TIMEOUT_SECS"]
-    user_dict = os.environ["USER_DICT"]
     index = np.random.randint(len(servable_names))
     server = servers[index]
     servable_name = servable_names[index]
@@ -29,10 +28,7 @@ class BertAlignTask(celery.Task):
     num_servers = len(servable_names)
 
     for server, servable_name in zip(servers, servable_names):
-        _align_clients.append(BertAlignClient(
-            data_dir,
-            bert_config_file,
-            user_dict,
+        _align_clients.append(EnJaBertAlignClient(
             src_vocab_model,
             tgt_vocab_model,
             server,
@@ -50,7 +46,7 @@ class BertAlignTask(celery.Task):
 
 
 # set up the broker
-app = Celery("tasks_align_bert",
+app = Celery("tasks_align_bert_enja",
              broker="amqp://{user:s}:{password:s}@{host:s}:{port:s}"
              .format(
                  user=os.environ['MQ_USER'],
@@ -60,12 +56,14 @@ app = Celery("tasks_align_bert",
              backend='amqp',
              task_serializer='json',
              result_serializer='json',
-             accept_content=['json'],
-             result_persistent=False
+             accept_content=['json']
              )
 
+app.config_from_object("celeryconfig_enja")
 
-@app.task(name="tasks_align_bert.alignment", base=BertAlignTask, bind=True, max_retries=int(os.environ['MAX_RETRIES']))
+
+@app.task(name="tasks_align_bert_enja.alignment", base=BertAlignTask, bind=True,
+          max_retries=int(os.environ['MAX_RETRIES']))
 def alignment(self, msg):
     try:
         source = json.loads(msg, strict=False)

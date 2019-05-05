@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 import tcelery
-import bert_align_tasks
+import bert_align_tasks_enja
 import argparse
 import json
 import logging
@@ -62,7 +62,7 @@ class AsyncAppBertHandler(MyAppBaseHandler):
         if not (content_type and content_type.lower().startswith('application/json')):
             MyAppException(reason="Wrong data format, needs json", status_code=400)
         logger.info(self.request.body.decode("utf-8"))
-        res = yield gen.Task(bert_align_tasks.alignment.apply_async, args=[self.request.body])
+        res = yield gen.Task(bert_align_tasks_enja.alignment.apply_async, args=[self.request.body])
         ret = res.result
         self.write(ret)
         logger.info(ret)
@@ -75,7 +75,7 @@ class AsyncAppBertHandler(MyAppBaseHandler):
         if not (content_type and content_type.lower().startswith('application/json')):
             MyAppException(reason="Wrong data format, needs json", status_code=400)
         logger.info(self.request.body.decode("utf-8"))
-        res = yield gen.Task(bert_align_tasks.alignment.apply_async, args=[self.request.body])
+        res = yield gen.Task(bert_align_tasks_enja.alignment.apply_async, args=[self.request.body])
         ret = res.result
         self.write(ret)
         logger.info(ret)
@@ -84,15 +84,16 @@ class AsyncAppBertHandler(MyAppBaseHandler):
 
 if __name__ == '__main__':
     log_format = "%(asctime)s-%(levelname)s-%(message)s"
-    os.makedirs("align_bert_logs", exist_ok=True)
-    handler = TimedRotatingFileHandler('align_bert_logs/alignment_bert.log', when='midnight', interval=1,
+    os.makedirs("align_bert_enja_logs", exist_ok=True)
+    handler = TimedRotatingFileHandler('align_bert_enja_logs/alignment_enja_bert.log', backupCount=30,
+                                       when='midnight', interval=1,
                                        encoding="utf-8")
     formatter = logging.Formatter(log_format)
     handler.setFormatter(formatter)
 
     handler.suffix = "%Y%m%d"
 
-    logger = logging.getLogger("alignment_bert")
+    logger = logging.getLogger("alignment_enja_bert")
     logger.setLevel(logging.INFO)
     logger.addHandler(handler)
 
