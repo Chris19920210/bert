@@ -3,7 +3,6 @@
 from celery import Celery
 import celery
 from serving_utils import EnJaBertAlignClient
-import numpy as np
 import json
 import logging
 import os
@@ -15,14 +14,9 @@ import traceback
 class BertAlignTask(celery.Task):
     servers = os.environ['SERVERS'].split(" ")
     servable_names = os.environ['SERVABLE_NAMES'].split(" ")
-    data_dir = os.environ["DATA_DIR"]
-    bert_config_file = os.environ["BERT_CONFIG_FILE"]
     src_vocab_model = os.environ["SRC_VOCAB_MODEL"]
     tgt_vocab_model = os.environ["TGT_VOCAB_MODEL"]
     timeout_secs = os.environ["TIMEOUT_SECS"]
-    index = np.random.randint(len(servable_names))
-    server = servers[index]
-    servable_name = servable_names[index]
 
     _align_clients = []
     num_servers = len(servable_names)

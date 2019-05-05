@@ -57,6 +57,12 @@ class AsyncAppBertHandler(MyAppBaseHandler):
 
     @web.asynchronous
     @gen.coroutine
+    def head(self):
+        self.set_status(200)
+        self.finish()
+
+    @web.asynchronous
+    @gen.coroutine
     def get(self):
         content_type = self.request.headers.get('Content-Type')
         if not (content_type and content_type.lower().startswith('application/json')):

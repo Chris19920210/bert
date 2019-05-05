@@ -94,7 +94,7 @@ def make_grpc_request_fn(servable_name, server, timeout_secs):
                 [ex.SerializeToString() for ex in examples], shape=[len(examples)]))
 
         response = stub.Predict(request, timeout_secs)
-        outputs = tf.make_ndarray(response.outputs["probabilities"])
+        outputs = tf.make_ndarray(response.outputs["output"])
         return outputs
 
     return _make_grpc_request
@@ -148,7 +148,7 @@ class EnZhBertAlignClient(BertAlignClient):
         self.en_tokenizer = MosesTokenizer('en')
         jieba.load_userdict(user_dict)
         self.request_fn = make_request_fn(server, servable_name, timeout_secs)
-        super(EnZhBertAlignClient).__init__(
+        super(EnZhBertAlignClient, self).__init__(
             src_vacob_model,
             tgt_vocab_model,
             server,
@@ -193,7 +193,7 @@ class EnJaBertAlignClient(BertAlignClient):
         self.en_tokenizer = MosesTokenizer('en')
         self.mecab = MeCab.Tagger("-Owakati")
         self.request_fn = make_request_fn(server, servable_name, timeout_secs)
-        super(EnJaBertAlignClient).__init__(
+        super(EnJaBertAlignClient, self).__init__(
             src_vacob_model,
             tgt_vocab_model,
             server,
