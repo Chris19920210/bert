@@ -162,7 +162,7 @@ def file_based_input_fn_builder(input_files, is_training, batch_size):
                     tf.TensorShape([None]),  # rates
                     tf.TensorShape([None]),  # also_view_ids
                     tf.TensorShape([None]),  # items_ids mask
-                    tf.TensorShape([None]),  # also_view_ids
+                    tf.TensorShape([None]),  # also_view_mask
                     tf.TensorShape([])),  # user_id
                 # Pad the source sequences with eos tokens.
                 # (Though notice we don't generally need to do this since
