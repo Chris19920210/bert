@@ -21,9 +21,7 @@ from __future__ import print_function
 import collections
 import copy
 import json
-import math
 import re
-import numpy as np
 import six
 import tensorflow as tf
 
@@ -80,7 +78,6 @@ class MCFConfig(object):
 
 
 class MCFModel(object):
-
 
   def __init__(self,
                config,
@@ -142,7 +139,7 @@ class MCFModel(object):
             word_embedding_name="also_view_embedding",
             use_one_hot_embeddings=use_one_hot_embeddings)
 
-        (self.target_item__embedding_output, _ ) =  embedding_lookup(
+        (self.target_item_embedding_output, _) = embedding_lookup(
             input_ids=item_id,
             vocab_size=config.item_vol,
             regularizer_scale=config.regularizer_scale,
@@ -154,10 +151,8 @@ class MCFModel(object):
         ## squeeze for further use
         self.user_embedding_output = tf.squeeze(self.user_embedding_output,
                                                 name='user_id_squeeze', axis=1)
-        self.target_item__embedding_output = tf.squeeze(self.target_item__embedding_output,
-                                                        name='target_item_squeeze', axis=1)
-
-
+        self.target_item_embedding_output = tf.squeeze(self.target_item_embedding_output,
+                                                       name='target_item_squeeze', axis=1)
 
       with tf.variable_scope("user_item_mf"):
           self.user_item_prod = tf.einsum('aik,ak->ai',
@@ -165,8 +160,7 @@ class MCFModel(object):
 
       with tf.variable_scope("item_item_mf"):
           self.also_view_prod = tf.einsum('aik,ak->ai',
-                                          self.also_view_embedding_output, self.target_item__embedding_output)
-
+                                          self.also_view_embedding_output, self.target_item_embedding_output)
 
   def get_user_item_products(self):
     return self.user_item_prod, self.also_view_prod
@@ -180,12 +174,11 @@ class MCFModel(object):
       embeddings with the positional embeddings and the token type embeddings,
       then performing layer normalization. This is the input to the transformer.
     """
-    return self.user_embedding_output, self.target_item__embedding_output, \
+    return self.user_embedding_output, self.target_item_embedding_output, \
            self.item_embedding_output, self.also_view_embedding_output
 
   def get_embedding_table(self):
     return self.user_embedding_table, self.item_embedding_table, self.also_view_embedding_table
-
 
 
 def get_assignment_map_from_checkpoint(tvars, init_checkpoint):
@@ -299,7 +292,6 @@ def embedding_lookup(input_ids,
   output = tf.reshape(output,
                       input_shape[0:-1] + [input_shape[-1] * embedding_size])
   return (output, embedding_table)
-
 
 
 def get_shape_list(tensor, expected_rank=None, name=None):

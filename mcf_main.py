@@ -64,8 +64,6 @@ flags.DEFINE_bool(
 
 flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
 
-flags.DEFINE_integer("num_classes", 2, "number of class")
-
 flags.DEFINE_integer("eval_batch_size", 8, "Total batch size for eval.")
 
 flags.DEFINE_integer("predict_batch_size", 8, "Total batch size for predict.")
@@ -92,6 +90,8 @@ flags.DEFINE_integer("max_items_length", 128,
 flags.DEFINE_float("also_view_ratio", 0.1,
                    "also_view_ratio")
 
+flags.DEFINE_float("l2_penalty", 0.1, "l2_penalty")
+
 
 def get_available_gpus():
     local_device_protos = device_lib.list_local_devices()
@@ -102,14 +102,13 @@ def file_based_input_fn_builder(user_item_files, also_view_files, is_training, b
     """Creates an `input_fn` closure to be passed to TPUEstimator."""
 
     user_items_name_to_features = {
-        "user_id": tf.FixedLenFeature([1], tf.int64),
+        "user_id": tf.VarLenFeature(tf.int64),
         "item_ids": tf.VarLenFeature(tf.int64),
         "rates": tf.VarLenFeature(tf.float32)
     }
 
-
     also_view_name_to_features = {
-        "item_id": tf.FixedLenFeature([1], tf.int64),
+        "item_id": tf.VarLenFeature(tf.int64),
         "also_view_ids": tf.VarLenFeature(tf.int64)
     }
 
@@ -125,7 +124,7 @@ def file_based_input_fn_builder(user_item_files, also_view_files, is_training, b
                 t = tf.to_int32(t)
             example[name] = t
 
-        return example["user_id"], example["item_ids"].values, example["rates"].values
+        return example["user_id"].values, example["item_ids"].values, example["rates"].values
 
     def _also_view_decode_record(record, name_to_features):
         example = tf.parse_single_example(record, name_to_features)
@@ -138,7 +137,7 @@ def file_based_input_fn_builder(user_item_files, also_view_files, is_training, b
                 t = tf.to_int32(t)
             example[name] = t
 
-        return example["item_id"], example["also_view_ids"].values
+        return example["item_id"].values, example["also_view_ids"].values
 
     def input_fn():
         """The actual input function."""
@@ -150,14 +149,12 @@ def file_based_input_fn_builder(user_item_files, also_view_files, is_training, b
 
         d = tf.data.Dataset.zip((user_item_dataset, also_view_dataset))
 
-
         if is_training:
             d = d.repeat()
             d = d.shuffle(buffer_size=100)
 
         d = d.map(lambda user_items, also_view: (_user_items_decode_record(user_items, user_items_name_to_features),
                                                  _also_view_decode_record(also_view, also_view_name_to_features)))
-
 
         d = d.map(lambda user_items_feature, also_view_feature: (
             user_items_feature[1][:FLAGS.max_items_length],
@@ -204,8 +201,8 @@ def file_based_input_fn_builder(user_item_files, also_view_files, is_training, b
                     0))  # src_len -- unused
 
         batched_dataset = batching_func(d)
-        features = batched_dataset.map(lambda item_ids, rates, also_view_ids, items_mask,
-                                              also_view_mask, user_id, item_id:
+        features = batched_dataset.map(lambda item_ids, rates, also_view_ids, items_mask, also_view_mask,
+                                              user_id, item_id:
         {
             "item_ids": item_ids,
             "rates": rates,
@@ -252,12 +249,12 @@ def create_model(mcf_config, user_id, item_id, item_ids, also_view_ids, rates, i
         mask_also_view_loss = also_view_prod_raw_loss * also_view_mask
 
         user_item_loss = tf.reduce_sum(mask_user_item_loss ** 2, axis=1, name='user_item_loss')
-        also_view_loss = tf.reduce_sum(mask_also_view_loss, axis=1, name='also_view_loss')
+        also_view_loss = tf.reduce_sum(mask_also_view_loss ** 2, axis=1, name='also_view_loss')
 
         reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
 
-        loss = tf.reduce_mean((user_item_loss + FLAGS.also_view_ratio * also_view_loss)) + tf.reduce_mean(reg_losses)
-
+        loss = tf.reduce_mean((user_item_loss + FLAGS.also_view_ratio * also_view_loss))\
+               + FLAGS.l2_penalty * tf.reduce_mean(reg_losses)
 
         return model, loss, user_item_loss, also_view_loss
 
@@ -275,16 +272,15 @@ def model_fn_builder(mcf_config, init_checkpoint, learning_rate,
 
         item_ids = features["item_ids"]
         rates = features["rates"]
-        also_view_ids =features["also_view_ids"]
-        items_mask =features["items_mask"]
+        also_view_ids = features["also_view_ids"]
+        items_mask = features["items_mask"]
         also_view_mask = features["also_view_mask"]
         user_id = features["user_id"]
         item_id = features["item_id"]
 
-
         (model, loss, user_item_loss, also_view_loss) = create_model(mcf_config, user_id, item_id, item_ids,
-                                                                             also_view_ids, rates, items_mask,
-                                                                             also_view_mask, use_one_hot_embeddings)
+                                                                     also_view_ids, rates, items_mask,
+                                                                     also_view_mask, use_one_hot_embeddings)
         tvars = tf.trainable_variables()
         initialized_variable_names = {}
         if init_checkpoint:
@@ -358,8 +354,7 @@ def main(_):
     )
 
     model_fn = model_fn_builder(
-        bert_config=bert_config,
-        num_labels=FLAGS.num_classes,
+        mcf_config=mcf_config,
         init_checkpoint=FLAGS.init_checkpoint,
         learning_rate=FLAGS.learning_rate,
         num_train_steps=FLAGS.num_train_steps,
@@ -374,13 +369,16 @@ def main(_):
 
     if FLAGS.do_train:
         train_files = os.listdir(FLAGS.data_dir)
-        train_files = [os.path.join(FLAGS.data_dir, path) for path in train_files if "train"in path]
+        user_item_train_files = [os.path.join(FLAGS.data_dir, path) for path in train_files if "user_item_train"in path]
+        also_view_train_files = [os.path.join(FLAGS.data_dir, path) for path in train_files if "also_view_train"in path]
+
         tf.logging.info("***** Running training *****")
         tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
         tf.logging.info("  Num steps = %d", FLAGS.num_train_steps)
 
         train_input_fn = file_based_input_fn_builder(
-            input_files=train_files,
+            user_item_files=user_item_train_files,
+            also_view_files=also_view_train_files,
             is_training=True,
             batch_size=FLAGS.train_batch_size)
 
@@ -390,14 +388,16 @@ def main(_):
         )
 
         eval_files = os.listdir(FLAGS.data_dir)
-        eval_files = [os.path.join(FLAGS.data_dir, path) for path in eval_files if "dev" in path]
+        user_item_eval_files = [os.path.join(FLAGS.data_dir, path) for path in eval_files if "user_item_dev" in path]
+        also_view_eval_files = [os.path.join(FLAGS.data_dir, path) for path in eval_files if "also_view_dev" in path]
         # This tells the estimator to run through the entire set.
 
         # However, if running eval on the TPU, you will need to specify the
         # number of steps.
 
         eval_input_fn = file_based_input_fn_builder(
-            input_files=eval_files,
+            user_item_files=user_item_eval_files,
+            also_view_files=also_view_eval_files,
             is_training=False,
             batch_size=FLAGS.eval_batch_size)
 
@@ -415,7 +415,8 @@ def main(_):
 
     if FLAGS.do_eval:
         eval_files = os.listdir(FLAGS.data_dir)
-        eval_files = [os.path.join(FLAGS.data_dir, path) for path in eval_files if "pred" in path]
+        user_item_eval_files = [os.path.join(FLAGS.data_dir, path) for path in eval_files if "user_item_dev" in path]
+        also_view_eval_files = [os.path.join(FLAGS.data_dir, path) for path in eval_files if "also_view_dev" in path]
 
         # This tells the estimator to run through the entire set.
         eval_steps = None
@@ -423,7 +424,8 @@ def main(_):
         # number of steps.
 
         eval_input_fn = file_based_input_fn_builder(
-            input_files=eval_files,
+            user_item_files=user_item_eval_files,
+            also_view_files=also_view_eval_files,
             is_training=False,
             batch_size=FLAGS.eval_batch_size)
 
@@ -440,29 +442,41 @@ def main(_):
     if FLAGS.do_predict:
 
         predict_files = os.listdir(FLAGS.data_dir)
-        predict_files = [os.path.join(FLAGS.data_dir, path) for path in predict_files if "pred" in path]
+        user_item_eval_files = [os.path.join(FLAGS.data_dir, path) for path in predict_files if "user_item_pred" in path]
+        also_view_eval_files = [os.path.join(FLAGS.data_dir, path) for path in predict_files if "also_view_pred" in path]
 
         tf.logging.info("***** Running prediction*****")
 
         tf.logging.info("  Batch size = %d", FLAGS.predict_batch_size)
 
         predict_input_fn = file_based_input_fn_builder(
-            input_files=predict_files,
+            user_item_files=user_item_eval_files,
+            also_view_files=also_view_eval_files,
             is_training=False,
             batch_size=FLAGS.predict_batch_size)
 
         result = estimator.predict(input_fn=predict_input_fn)
 
-        output_predict_file = os.path.join(FLAGS.output_dir, "test_results.tsv")
-        with tf.gfile.GFile(output_predict_file, "w") as writer:
+        user_embedding_file = os.path.join(FLAGS.output_dir, "user_embedding.tsv")
+        item_embedding_file = os.path.join(FLAGS.output_dir, "item_embedding.tsv")
+
+        with tf.gfile.GFile(user_embedding_file, "w") as writer_1, tf.gfile.GFile(item_embedding_file, 'w') as writer_2 :
             num_written_lines = 0
             tf.logging.info("***** Predict results *****")
             for (i, prediction) in enumerate(result):
-                probabilities = prediction["probabilities"]
-                output_line = "\t".join(
-                    str(class_probability)
-                    for class_probability in probabilities) + "\n"
-                writer.write(output_line)
+                user_embedding = prediction["user_embedding"]
+                item_embedding = prediction["item_embedding"]
+                output_line_1 = ",".join(
+                    str(index)
+                    for index in user_embedding) + "\n"
+                writer_1.write(output_line_1)
+
+                output_line_2 = ",".join(
+                    str(index)
+                    for index in item_embedding) + "\n"
+
+                writer_2.write(output_line_2)
+
                 num_written_lines += 1
 
 
